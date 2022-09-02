@@ -7,9 +7,15 @@
 (require  racket/match)
 (require  racket/sequence)
 
+(define (not-hidden-path? filepath)
+  (let-values ([(base name must-be-dir?) (split-path filepath)])
+    (not (string-prefix? (path->string name) "."))))
 
-(define (load-tone-files dirname)
-  (directory-list dirname #:build? #t))
+
+(define (load-sound-files dirname)
+  (filter
+   not-hidden-path?
+   (directory-list dirname #:build? #t)))
 
 (define (filename-has-trimmed? filename)
   (let-values ([(base name must-be-dir?) (split-path filename)])
@@ -17,13 +23,13 @@
 
 
 (define (has-trimmed-file dirname)
-  (let ([filenames (load-tone-files dirname)])
+  (let ([filenames (load-sound-files dirname)])
     (ormap filename-has-trimmed?
            filenames)))
 
 
 (define (remove-untrimmed-files dirname)
-  (let ([filenames (load-tone-files dirname)])
+  (let ([filenames (load-sound-files dirname)])
     (for-each kill-untrimmed
               filenames)))
 
@@ -90,6 +96,11 @@
   (let ([names (glossika-file-lines->names (file->lines glossika-file-name))])
     names))
 
+(define (tone-file-name-from-dirname dirname)
+  (define namefilebasename (string-downcase (string-trim dirname "/")))
+  (define namefilepath (path-replace-extension namefilebasename ".txt"))
+  namefilepath)
+
 (define (process-names-file dirname)
   (define namefilebasename (string-downcase (string-trim dirname "/")))
   (define namefilepath (path-replace-extension namefilebasename ".txt"))
@@ -102,5 +113,26 @@
 
   )
 
+
+(define (verify-count dirname)
+  (let ([filenames (load-sound-files dirname)]
+        [names (glossika-file->names (tone-file-name-from-dirname dirname))])
+    (unless (= (length filenames)
+               (length names))
+      (println filenames)
+      (error "Mismatch " dirname "~n"
+             "files: " (length filenames)
+             "tones: " (length names)))))
+
 (define (process-dir dirname)
-  (process-names-file dirname))
+  ;(process-names-file dirname)
+  (verify-count dirname)
+  )
+
+
+(define all-dirs (for*/list ([i (in-range 4)]
+                             [j (in-range 4)])
+                   (format "T~a~a" (+ 1 i) (+ 1 j))))
+
+(define (process-all-dirs)
+  (for-each verify-count all-dirs))
