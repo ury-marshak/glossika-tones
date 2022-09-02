@@ -1,0 +1,106 @@
+#lang racket/base
+
+(require  racket/string)
+(require  racket/path)
+(require  racket/generator)
+(require  racket/file)
+(require  racket/match)
+(require  racket/sequence)
+
+
+(define (load-tone-files dirname)
+  (directory-list dirname #:build? #t))
+
+(define (filename-has-trimmed? filename)
+  (let-values ([(base name must-be-dir?) (split-path filename)])
+    (string-suffix? (path-replace-extension name #"") "_trimmed")))
+
+
+(define (has-trimmed-file dirname)
+  (let ([filenames (load-tone-files dirname)])
+    (ormap filename-has-trimmed?
+           filenames)))
+
+
+(define (remove-untrimmed-files dirname)
+  (let ([filenames (load-tone-files dirname)])
+    (for-each kill-untrimmed
+              filenames)))
+
+
+(define (kill-untrimmed filepath)
+  (define trimmed_str "_trimmed")
+  (let-values ([(base name must-be-dir?) (split-path filepath)])
+    (let ([ext (path-get-extension name)]
+          [base-fn (path->string (path-replace-extension name #""))])
+      (when (string-suffix? base-fn  trimmed_str)
+        (let* ([untrimmed-base-fn (string-trim base-fn trimmed_str)]
+               [untrimmed-path (build-path base (path-replace-extension untrimmed-base-fn ext))])
+          ;; (displayln untrimmed-path)
+          ;; (displayln filepath)
+          (delete-file untrimmed-path)
+          (rename-file-or-directory filepath untrimmed-path)
+          )))))
+
+
+;
+
+
+
+;; (define get4lines
+;;   (generator (lines)
+;;              (let loop ([curr lines])
+;;                (if (null? curr)
+;;                    eof
+;;                    (let ([four-lines (for/list ([i (in-range 4)])
+;;                                        (when (null? curr)
+;;                                          (error (format "Missing line ~a of 4" (+ 1 i))))
+;;                                        (begin0
+;;                                            (car curr)
+;;                                          ;(println (car curr))
+;;                                          (set! curr (cdr curr))))])
+;;                      (println four-lines)
+;;                      (yield four-lines)
+;;                      (loop curr))))))
+
+;;     (for/list ([mc-simp-trad-pinyin (in-producer get4lines eof  name-file-lines)])
+;;       (println mc-simp-trad-pinyin)  )
+
+
+(define (get-props-from-lines name-file-lines)
+  (define (rem-ascii-letters word)
+    (string-replace word #px"\\w+|\\s+" "" ))
+
+  (for/list ([mc-simp-trad-pinyin (in-slice 4 name-file-lines)])
+      (match mc-simp-trad-pinyin
+        [(list mc simp trad pinyin)
+
+         (list mc simp (rem-ascii-letters simp) trad (rem-ascii-letters trad) pinyin)])))
+
+(define (glossika-file-lines->names name-file-lines)
+  (for/list ([mc-simp-trad-pinyin (get-props-from-lines name-file-lines)])
+      (match mc-simp-trad-pinyin
+        [(list mc simp-mc simp trad-mc trad pinyin)
+
+         (string-append trad "_"  pinyin)])))
+
+
+(define (glossika-file->names glossika-file-name)
+  ;; return a list of (parts of) new file names
+  (let ([names (glossika-file-lines->names (file->lines glossika-file-name))])
+    names))
+
+(define (process-names-file dirname)
+  (define namefilebasename (string-downcase (string-trim dirname "/")))
+  (define namefilepath (path-replace-extension namefilebasename ".txt"))
+  (define outputfilepath (path-replace-extension namefilebasename "-n.txt"))
+  (displayln outputfilepath)
+  ;(unless (file-exists? outputfilepath) )
+
+  (let ([partial-names (glossika-file->names namefilepath)])
+    (println (length partial-names)))
+
+  )
+
+(define (process-dir dirname)
+  (process-names-file dirname))
