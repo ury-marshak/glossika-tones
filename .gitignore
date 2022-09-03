@@ -1,0 +1,16 @@
+*~
+\#*
+
+.DS_Store
+
+*.csv
+*.tsv
+
+*.zip
+*.gz
+*.7z
+*.sqlite3
+
+
+auto/
+

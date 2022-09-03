@@ -132,7 +132,7 @@
 
 (define all-dirs (for*/list ([i (in-range 4)]
                              [j (in-range 4)])
-                   (format "T~a~a" (+ 1 i) (+ 1 j))))
+                   (format "tones/T~a~a" (+ 1 i) (+ 1 j))))
 
 (define (process-all-dirs)
   (for-each process-dir all-dirs))
