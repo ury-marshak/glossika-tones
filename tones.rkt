@@ -83,59 +83,111 @@
 
          (list mc simp (rem-ascii-letters simp) trad (rem-ascii-letters trad) pinyin)])))
 
-(define (glossika-file-lines->names name-file-lines)
+(struct tonefile
+  (resulting-filename
+   trad
+   simp
+   source-path
+   tonenumberA
+   tonenumberB
+   mc-tones
+   mc-trad
+   mc-simp
+   pinyin
+   )
+  #:transparent
+  #:mutable)
+
+
+;; (define (glossika-file-lines->names name-file-lines)
+;;   (for/list ([mc-simp-trad-pinyin (get-props-from-lines name-file-lines)])
+;;       (match mc-simp-trad-pinyin
+;;         [(list mc simp-mc simp trad-mc trad pinyin)
+
+;;          (string-append trad "_"  pinyin)])))
+
+
+(define (glossika-file-lines->tonefiles name-file-lines)
   (for/list ([mc-simp-trad-pinyin (get-props-from-lines name-file-lines)])
       (match mc-simp-trad-pinyin
         [(list mc simp-mc simp trad-mc trad pinyin)
 
-         (string-append trad "_"  pinyin)])))
+         (tonefile "" trad simp ""
+                   0 0
+                   mc
+                   trad-mc
+                   simp-mc
+                   pinyin)])))
 
 
-(define (glossika-file->names glossika-file-name)
+(define (glossika-file->tonefiles glossika-file-name)
   ;; return a list of (parts of) new file names
-  (let ([names (glossika-file-lines->names (file->lines glossika-file-name))])
-    names))
+  (let ([tonefiles (glossika-file-lines->tonefiles (file->lines glossika-file-name))])
+    tonefiles))
 
 (define (tone-file-name-from-dirname dirname)
   (define namefilebasename (string-downcase (string-trim dirname "/")))
   (define namefilepath (path-replace-extension namefilebasename ".txt"))
   namefilepath)
 
-(define (process-names-file dirname)
-  (define namefilebasename (string-downcase (string-trim dirname "/")))
-  (define namefilepath (path-replace-extension namefilebasename ".txt"))
-  (define outputfilepath (path-replace-extension namefilebasename "-n.txt"))
-  (displayln outputfilepath)
-  ;(unless (file-exists? outputfilepath) )
+;; (define (process-names-file dirname)
+;;   (define namefilebasename (string-downcase (string-trim dirname "/")))
+;;   (define namefilepath (path-replace-extension namefilebasename ".txt"))
+;;   (define outputfilepath (path-replace-extension namefilebasename "-n.txt"))
+;;   (displayln outputfilepath)
+;;   ;(unless (file-exists? outputfilepath) )
 
-  (let ([partial-names (glossika-file->names namefilepath)])
-    (println (length partial-names)))
+;;   (let ([partial-names (glossika-file->names namefilepath)])
+;;     (println (length partial-names)))
 
-  )
+;;   )
 
-
-(define (verify-count dirname)
-  (let ([filenames (load-sound-files dirname)]
-        [names (glossika-file->names (tone-file-name-from-dirname dirname))])
-    (unless (= (length filenames)
-               (length names))
-      (println filenames)
+(define (verify-count dirname sound-file-paths tonefiles)
+  (unless (= (length sound-file-paths)
+             (length tonefiles))
+      (println sound-file-paths)
       (error "Mismatch " dirname "~n"
-             "files: " (length filenames)
-             "tones: " (length names)))))
+             "files: " (length sound-file-paths)
+             "tones: " (length tonefiles))))
 
-(define (process-dir dirname)
+
+;; (define (update-filenames-in-tonefiles tonefiles)
+;;   )
+
+
+(define (make-resulting-filename tf)
+  (format "TONES-~a~a-~a.mp3" (tonefile-tonenumberA tf) (tonefile-tonenumberB tf)
+          (unaccent (tonefile-pinyin tf))))
+
+(define (process-dir dirname toneA toneB)
   ;(process-names-file dirname)
-  (verify-count dirname)
-  )
+  (let ([sound-file-paths (load-sound-files dirname)]
+        [tonefiles (glossika-file->tonefiles (tone-file-name-from-dirname dirname))])
+    (verify-count dirname sound-file-paths tonefiles)
+    (for ([audio-path sound-file-paths]
+          [tf tonefiles])
+      (set-tonefile-source-path! tf audio-path)
+      (set-tonefile-tonenumberA! tf toneA)
+      (set-tonefile-tonenumberB! tf toneB)
+      (set-tonefile-resulting-filename! tf (make-resulting-filename tf)))
+
+     ;; (println tonefiles)
+
+     (for ([tf tonefiles])
+       (let ([out-path (build-path "output" (tonefile-resulting-filename tf))])
+         (println out-path)
+         (copy-file (tonefile-source-path tf) out-path #t))
+      )
+    ))
 
 
-(define all-dirs (for*/list ([i (in-range 4)]
-                             [j (in-range 4)])
-                   (format "tones/T~a~a" (+ 1 i) (+ 1 j))))
 
 (define (process-all-dirs)
-  (for-each process-dir all-dirs))
+  (for* ([i (in-inclusive-range 1 4)]
+         [j (in-inclusive-range 1 4)])
+    (let ([dirname (format "tones/T~a~a" i j)])
+      (process-dir dirname i j)
+      )))
 
 
 (define (unaccent str)
@@ -149,7 +201,8 @@
            [#px"í|ì|î|ï|ī|ǐ|ỉ|ị" "i"]
            [#px"ñ|ň|ń" "n"]
            [#px"ó|ò|ô|ö|õ|ǒ|ø|ō|ồ|ơ|ọ|ỏ|ố|ổ|ỗ|ộ|ớ|ờ|ở|ợ" "o"]
-           [#px"ú|ù|û|ü|ū|ũ|ư|ụ|ủ|ǔ|ứ|ừ|ử|ữ|ự"     "u"]
+           [#px"ú|ù|û|ü|ū|ũ|ư|ụ|ủ|ǔ|ứ|ừ|ử|ữ|ự"     "u"] ;; no ü|, we need to keep it
+           [#px"ǜ|ǖ|ǘ|ǚ|ṻ"     "ü"]
            [#px"ý|ÿ|ỳ|ỷ|ỹ"     "y"]
            [#px"þ" "th"]
            [#px"ď|ð|đ" "d"]
@@ -162,6 +215,7 @@
            [#px" " " "]       ; thin space etc
            [#px"–" "-"]       ; dash
            [#px"—|一" "--"] ; em dash etc
+           [#px"'" "_"] ; single quote to underscore
            ]) )
     (for/fold ([word str])
               ([p $charMap])
