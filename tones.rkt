@@ -6,6 +6,11 @@
 (require  racket/file)
 (require  racket/match)
 (require  racket/sequence)
+(require  racket/list)
+(require  racket/fixnum)
+
+(require "tocfl-tsv.rkt")
+
 
 (define (not-hidden-path? filepath)
   (let-values ([(base name must-be-dir?) (split-path filepath)])
@@ -84,7 +89,9 @@
          (list mc simp (rem-ascii-letters simp) trad (rem-ascii-letters trad) pinyin)])))
 
 (struct tonefile
-  (resulting-filename
+  (index
+   index-in-tone
+   resulting-filename
    trad
    simp
    source-path
@@ -112,7 +119,8 @@
       (match mc-simp-trad-pinyin
         [(list mc simp-mc simp trad-mc trad pinyin)
 
-         (tonefile "" trad simp ""
+         (tonefile 0 0
+                   "" trad simp ""
                    0 0
                    mc
                    trad-mc
@@ -159,8 +167,28 @@
   (format "TONES-~a~a-~a.mp3" (tonefile-tonenumberA tf) (tonefile-tonenumberB tf)
           (unaccent (tonefile-pinyin tf))))
 
-(define (process-dir dirname toneA toneB)
-  ;(process-names-file dirname)
+;; (define (process-dir dirname toneA toneB)
+;;   ;(process-names-file dirname)
+;;   (let ([sound-file-paths (load-sound-files dirname)]
+;;         [tonefiles (glossika-file->tonefiles (tone-file-name-from-dirname dirname))])
+;;     (verify-count dirname sound-file-paths tonefiles)
+;;     (for ([audio-path sound-file-paths]
+;;           [tf tonefiles])
+;;       (set-tonefile-source-path! tf audio-path)
+;;       (set-tonefile-tonenumberA! tf toneA)
+;;       (set-tonefile-tonenumberB! tf toneB)
+;;       (set-tonefile-resulting-filename! tf (make-resulting-filename tf)))
+
+;;      ;; (println tonefiles)
+
+;;      (for ([tf tonefiles])
+;;        (let ([out-path (build-path "output" (tonefile-resulting-filename tf))])
+;;          (println out-path)
+;;          (copy-file (tonefile-source-path tf) out-path #t))
+;;       )
+;;     ))
+
+(define (load-tonefiles-for-dir dirname toneA toneB)
   (let ([sound-file-paths (load-sound-files dirname)]
         [tonefiles (glossika-file->tonefiles (tone-file-name-from-dirname dirname))])
     (verify-count dirname sound-file-paths tonefiles)
@@ -171,23 +199,55 @@
       (set-tonefile-tonenumberB! tf toneB)
       (set-tonefile-resulting-filename! tf (make-resulting-filename tf)))
 
-     ;; (println tonefiles)
+     tonefiles    ))
 
-     (for ([tf tonefiles])
-       (let ([out-path (build-path "output" (tonefile-resulting-filename tf))])
-         (println out-path)
-         (copy-file (tonefile-source-path tf) out-path #t))
-      )
+
+
+(define (load-all-dirs)
+  (let ([tones (for*/list ([i (in-inclusive-range 1 4)]
+                           [j (in-inclusive-range 1 4)])
+                 (let* ([dirname (format "tones/T~a~a" i j)]
+                        [dirtones (load-tonefiles-for-dir dirname i j)])
+                   ;; add index in tone directory
+                   (for ([tf dirtones]
+                         [i (in-range 1 (most-positive-fixnum))])
+                     (set-tonefile-index-in-tone! tf i))
+                   dirtones
+                   ))])
+    (set! tones (append* tones))
+    (for ([tf tones]
+          [i (in-range 1 (most-positive-fixnum))])
+      (set-tonefile-index! tf i))
+    tones))
+
+
+(define TOCFL-IN-FILENAME "TOCFL.txt")
+(define tocfl (make-hash))
+(define (load-tocfl [use-variants? #f])
+  (let ([data (read-TOCFL TOCFL-IN-FILENAME)])
+    (define (add-to-hash row)
+      (define (get-field fld-num)
+        (list-ref row fld-num))
+
+      (let ([word (get-field EXPRESSION-FIELD-NUM) ]
+            [variant (get-field VARIANTS-FIELD-NUM)])
+        (hash-set! tocfl word row)
+        (when (and use-variants? (not (string=? variant "")))
+          (when (> (length (string-split variant)) 1)
+            (error "More than one variant " variant))
+          (hash-set! tocfl variant row))))
+    (for-each add-to-hash data) ))
+(load-tocfl)
+
+
+(define (process-all)
+  (let ([tones (load-all-dirs)])
+    (count (lambda (tf)
+                (when (hash-ref tocfl (tonefile-trad tf) #f)
+                  ;;(println (tonefile-trad tf))
+                  #t))
+           tones )
     ))
-
-
-
-(define (process-all-dirs)
-  (for* ([i (in-inclusive-range 1 4)]
-         [j (in-inclusive-range 1 4)])
-    (let ([dirname (format "tones/T~a~a" i j)])
-      (process-dir dirname i j)
-      )))
 
 
 (define (unaccent str)
