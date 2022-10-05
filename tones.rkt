@@ -13,7 +13,7 @@
 (require (prefix-in TOCFL: "tocfl-tsv.rkt") )
 (require (prefix-in RTH: "rth-tsv.rkt") )
 (require "cedict.rkt")
-;(require "tones-tsv.rkt")
+(require "tones-tsv.rkt")
 
 
 (define (not-hidden-path? filepath)
@@ -339,7 +339,7 @@
              [rths (lookup-rths trad)])
 
         (if meanings
-            (set-tonefile-meaning! tf (string-join meanings "\n"))
+            (set-tonefile-meaning! tf (string-join meanings "<br>"))
             (set! missing-meaning (add1 missing-meaning)))
         (set-tonefile-RTH! tf rths)
         ))
@@ -351,3 +351,59 @@
     (when (string=? (tonefile-meaning tf) "")
       (println (tonefile-trad tf)))
     ))
+
+
+
+(define (tonefile->tags-string tf)
+  (string-join
+   (list
+    "TONES"
+    "TONES-2SYL"
+    (format "TONE~a~a" (tonefile-tonenumberA tf) (tonefile-tonenumberB tf)))))
+
+(define (tonefile->audio-string tf)
+  (format "[sound:~a]" (tonefile-resulting-filename tf) ))
+
+
+(define (remove-tabs s)
+  (string-replace s "\t" ""))
+
+
+(define (tonefile->row tf)
+  (let ([row (make-list (add1 TAGS-FIELD-NUM) "")])
+    (define (set-field field-num value)
+      (set! row (list-set row field-num (remove-tabs (format "~a" value)))))
+    (set-field INDEX-FIELD-NUM (tonefile-index tf))
+    (set-field INDEX-IN-TONE-FIELD-NUM (tonefile-index-in-tone tf))
+    (set-field KEYWORD-FIELD-NUM "")
+    (set-field TRAD-FIELD-NUM (tonefile-trad tf))
+    (set-field AUDIO-FIELD-NUM (tonefile->audio-string tf))
+    (set-field PINYIN-FIELD-NUM (tonefile-pinyin tf))
+    (set-field TONE-A-FIELD-NUM (tonefile-tonenumberA tf))
+    (set-field TONE-B-FIELD-NUM (tonefile-tonenumberB tf))
+    (set-field TONE-C-FIELD-NUM "")
+    (set-field MC-TONES-FIELD-NUM (tonefile-mc-tones tf))
+    (set-field PoS-FIELD-NUM (tonefile-PoS tf))
+    (set-field COMMENTS-FIELD-NUM "")
+    (set-field STROKES-FIELD-NUM "")
+    (set-field CHARACTERS-RTH-FIELD-NUM (tonefile-RTH tf))
+    (set-field MEANING-FIELD-NUM (tonefile-meaning tf))
+    (set-field VARIANTS-FIELD-NUM "")
+    (set-field VARIANTS-PINYIN-FIELD-NUM "")
+    (set-field SIMPLIFIED-FIELD-NUM (tonefile-simp tf))
+    (set-field SORT-ORDER-FIELD-NUM "")
+    (set-field TAGS-FIELD-NUM (tonefile->tags-string tf))
+    row))
+
+(define (tones->data tones)
+  (for/list ([tf tones])
+    (tonefile->row tf)))
+
+(define (write-tones-to-tsv tones)
+  (let ([data (tones->data tones)])
+    (write-Tones "Tones.tsv" data)))
+
+(define (write-all)
+  (let ([tones (load-and-update-all)])
+    (write-tones-to-tsv tones)
+    #t))
