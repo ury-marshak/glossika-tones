@@ -10,7 +10,10 @@
 (require  racket/fixnum)
 
 (require "unaccent.rkt")
-(require "tocfl-tsv.rkt")
+(require (prefix-in TOCFL: "tocfl-tsv.rkt") )
+(require (prefix-in RTH: "rth-tsv.rkt") )
+(require "cedict.rkt")
+;(require "tones-tsv.rkt")
 
 
 (define (not-hidden-path? filepath)
@@ -85,9 +88,9 @@
 
   (for/list ([mc-simp-trad-pinyin (in-slice 4 name-file-lines)])
       (match mc-simp-trad-pinyin
-        [(list mc simp trad pinyin)
+        [(list mc trad simp pinyin)
 
-         (list mc simp (rem-ascii-letters simp) trad (rem-ascii-letters trad) pinyin)])))
+         (list mc trad (rem-ascii-letters trad) simp (rem-ascii-letters simp) pinyin)])))
 
 (struct tonefile
   (index
@@ -127,7 +130,7 @@
 (define (glossika-file-lines->tonefiles name-file-lines)
   (for/list ([mc-simp-trad-pinyin (get-props-from-lines name-file-lines)])
       (match mc-simp-trad-pinyin
-        [(list mc simp-mc simp trad-mc trad pinyin)
+        [(list mc trad-mc trad simp-mc simp pinyin)
 
          (tonefile 0 0
                    "" trad simp ""
@@ -234,13 +237,13 @@
 (define TOCFL-IN-FILENAME "TOCFL.txt")
 (define tocfl (make-hash))
 (define (load-tocfl [use-variants? #f])
-  (let ([data (read-TOCFL TOCFL-IN-FILENAME)])
+  (let ([data (TOCFL:read-TOCFL TOCFL-IN-FILENAME)])
     (define (add-to-hash row)
       (define (get-field fld-num)
         (list-ref row fld-num))
 
-      (let ([word (get-field EXPRESSION-FIELD-NUM) ]
-            [variant (get-field VARIANTS-FIELD-NUM)])
+      (let ([word (get-field TOCFL:EXPRESSION-FIELD-NUM) ]
+            [variant (get-field TOCFL:VARIANTS-FIELD-NUM)])
         (hash-set! tocfl word row)
         (when (and use-variants? (not (string=? variant "")))
           (when (> (length (string-split variant)) 1)
@@ -248,6 +251,24 @@
           (hash-set! tocfl variant row))))
     (for-each add-to-hash data) ))
 (load-tocfl)
+
+
+(define RTH-IN-FILENAME "Remembering Traditional Hanzi 1+2.txt")
+(define rth (make-hash))
+(define (load-rth)
+  (let ([data (RTH:read-RTH RTH-IN-FILENAME)])
+    (define (add-to-hash row)
+      (define (get-field fld-num)
+        (list-ref row fld-num))
+
+      (let ([word (get-field RTH:CHARACTER-FIELD-NUM) ])
+        (hash-set! rth word row)
+        ))
+    (for-each add-to-hash data) ))
+(load-rth)
+
+
+(define cedict (read-CEDICT "/Users/ury/Downloads/cedict_1_0_ts_utf-8_mdbg.txt"))
 
 
 ;; (define (count-present2)
@@ -292,27 +313,41 @@
 
 
 
+(define (lookup-rths word)
+  (let ([rth-lst (for/list ([ch (in-string word)])
+
+                   (let ([rth-row (hash-ref rth (string ch) #f)])
+
+                     (define (get-field fld-num)
+                       (list-ref rth-row fld-num))
+
+                     (if rth-row
+                         (get-field RTH:KEYWORD-FIELD-NUM)
+                         "?")  ))])
+    (string-join rth-lst " + ")  ))
+
+
+
+
 (define (load-and-update-all)
   (let ([tones (load-all-dirs)]
-        [missing 0])
+        [missing-meaning 0])
 
     (for ([tf tones])
-      (let ([row (hash-ref tocfl (tonefile-trad tf) #f)])
-        (define (get-field fld-num)
-          (list-ref row fld-num))
+      (let* ([trad (tonefile-trad tf)]
+             [meanings (cedict-all-meanings cedict trad)]
+             [rths (lookup-rths trad)])
 
-        (if row
-            (begin (set-tonefile-PoS! tf (get-field PoS-FIELD-NUM))
-                   (set-tonefile-RTH! tf (get-field CHARACTERS-RTH-FIELD-NUM))
-                   (set-tonefile-keyword! tf (get-field KEYWORD-FIELD-NUM))
-                   (set-tonefile-meaning! tf (get-field MEANING-FIELD-NUM))
-                   (set-tonefile-strokes! tf (get-field STROKES-FIELD-NUM))
-                   (set-tonefile-variants! tf (get-field VARIANTS-FIELD-NUM))
-                   (set-tonefile-variants! tf (get-field VARIANTS-PINYIN-FIELD-NUM)))
-            (begin
-              ;(println (tonefile-trad tf))
-              (set! missing (+ 1 missing))
-              ))
+        (if meanings
+            (set-tonefile-meaning! tf (string-join meanings "\n"))
+            (set! missing-meaning (add1 missing-meaning)))
+        (set-tonefile-RTH! tf rths)
         ))
-    (println missing)
+    ;; (printf "missing ~a ~n" missing-meaning)
+    tones))
+
+(define (show-missing-meaning tones)
+  (for ([tf tones])
+    (when (string=? (tonefile-meaning tf) "")
+      (println (tonefile-trad tf)))
     ))
