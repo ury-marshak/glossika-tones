@@ -107,6 +107,9 @@
    [meaning #:auto]
    [RTH #:auto]
    [PoS #:auto]
+   [strokes #:auto]
+   [variants #:auto]
+   [variants-pinyin #:auto]
    )
   #:auto-value ""
   #:transparent
@@ -247,21 +250,69 @@
 (load-tocfl)
 
 
-(define (load-and-update-all)
+;; (define (count-present2)
+;;   (let ([tones (load-all-dirs)])
+;;     (count (lambda (tf)
+;;                 (when (hash-ref tocfl (tonefile-trad tf) #f)
+;;                   ;;(println (tonefile-trad tf))
+;;                   #t))
+;;            tones )))
+
+(define (count-present-in-tocfl)
   (let ([tones (load-all-dirs)])
+    (count (lambda (tf)
+             (hash-ref tocfl (tonefile-trad tf) #f))
+           tones )))
+
+
+;; (define (load-and-update-from-tocfl)
+;;   (let ([tones (load-all-dirs)]
+;;         [missing 0])
+
+;;     (for ([tf tones])
+;;       (let ([row (hash-ref tocfl (tonefile-trad tf) #f)])
+;;         (define (get-field fld-num)
+;;           (list-ref row fld-num))
+
+;;         (if row
+;;             (begin (set-tonefile-PoS! tf (get-field PoS-FIELD-NUM))
+;;                    (set-tonefile-RTH! tf (get-field CHARACTERS-RTH-FIELD-NUM))
+;;                    (set-tonefile-keyword! tf (get-field KEYWORD-FIELD-NUM))
+;;                    (set-tonefile-meaning! tf (get-field MEANING-FIELD-NUM))
+;;                    (set-tonefile-strokes! tf (get-field STROKES-FIELD-NUM))
+;;                    (set-tonefile-variants! tf (get-field VARIANTS-FIELD-NUM))
+;;                    (set-tonefile-variants! tf (get-field VARIANTS-PINYIN-FIELD-NUM)))
+;;             (begin
+;;               ;(println (tonefile-trad tf))
+;;               (set! missing (+ 1 missing))
+;;               ))
+;;         ))
+;;     (println missing)
+;;     ))
+
+
+
+(define (load-and-update-all)
+  (let ([tones (load-all-dirs)]
+        [missing 0])
 
     (for ([tf tones])
       (let ([row (hash-ref tocfl (tonefile-trad tf) #f)])
         (define (get-field fld-num)
           (list-ref row fld-num))
 
-        (set-tonefile-PoS! tf (get-field PoS-FIELD-NUM))
-        (set-tonefile-RTH! tf (get-field CHARACTERS-RTH-FIELD-NUM))
-        (set-tonefile-keyword! tf (get-field KEYWORD-FIELD-NUM))
-        (set-tonefile-meaning! tf (get-field MEANING-FIELD-NUM))
-
+        (if row
+            (begin (set-tonefile-PoS! tf (get-field PoS-FIELD-NUM))
+                   (set-tonefile-RTH! tf (get-field CHARACTERS-RTH-FIELD-NUM))
+                   (set-tonefile-keyword! tf (get-field KEYWORD-FIELD-NUM))
+                   (set-tonefile-meaning! tf (get-field MEANING-FIELD-NUM))
+                   (set-tonefile-strokes! tf (get-field STROKES-FIELD-NUM))
+                   (set-tonefile-variants! tf (get-field VARIANTS-FIELD-NUM))
+                   (set-tonefile-variants! tf (get-field VARIANTS-PINYIN-FIELD-NUM)))
+            (begin
+              ;(println (tonefile-trad tf))
+              (set! missing (+ 1 missing))
+              ))
         ))
+    (println missing)
     ))
-
-
-
