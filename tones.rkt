@@ -233,6 +233,40 @@
       (set-tonefile-index! tf i))
     tones))
 
+;; (define (process-dir dirname toneA toneB)
+;;   ;(process-names-file dirname)
+;;   (let ([sound-file-paths (load-sound-files dirname)]
+;;         [tonefiles (glossika-file->tonefiles (tone-file-name-from-dirname dirname))])
+;;     (verify-count dirname sound-file-paths tonefiles)
+;;     (for ([audio-path sound-file-paths]
+;;           [tf tonefiles])
+;;       (set-tonefile-source-path! tf audio-path)
+;;       (set-tonefile-tonenumberA! tf toneA)
+;;       (set-tonefile-tonenumberB! tf toneB)
+;;       (set-tonefile-resulting-filename! tf (make-resulting-filename tf)))
+
+;;      ;; (println tonefiles)
+
+;;      (for ([tf tonefiles])
+;;        (let ([out-path (build-path "output" (tonefile-resulting-filename tf))])
+;;          (println out-path)
+;;          (copy-file (tonefile-source-path tf) out-path #t))
+;;       )
+;;     ))
+
+(define (load-and-process-sound-files)
+  (let ([tonefiles (load-all-dirs)])
+
+    (for ([tf tonefiles])
+      (let ([out-path (build-path "output" (tonefile-resulting-filename tf))])
+        (printf "~a -> ~a \n" (tonefile-source-path tf) out-path)
+        (copy-file (tonefile-source-path tf) out-path #t)
+        )
+      )
+    ))
+
+
+
 
 (define TOCFL-IN-FILENAME "TOCFL.txt")
 (define tocfl (make-hash))
