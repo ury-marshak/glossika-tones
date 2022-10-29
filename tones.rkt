@@ -215,18 +215,20 @@
      tonefiles    ))
 
 
+(define (load-dir-for-tones tone-1 tone-2)
+  (let* ([dirname (format "tones/T~a~a" tone-1 tone-2)]
+         [dirtones (load-tonefiles-for-dir dirname tone-1 tone-2)])
+    ;; add index in tone directory
+    (for ([tf dirtones]
+          [n (in-range 1 (most-positive-fixnum))])
+      (set-tonefile-index-in-tone! tf n))
+    dirtones))
+
 
 (define (load-all-dirs)
   (let ([tones (for*/list ([i (in-inclusive-range 1 4)]
                            [j (in-inclusive-range 1 4)])
-                 (let* ([dirname (format "tones/T~a~a" i j)]
-                        [dirtones (load-tonefiles-for-dir dirname i j)])
-                   ;; add index in tone directory
-                   (for ([tf dirtones]
-                         [i (in-range 1 (most-positive-fixnum))])
-                     (set-tonefile-index-in-tone! tf i))
-                   dirtones
-                   ))])
+                 (load-dir-for-tones i j))])
     (set! tones (append* tones))
     (for ([tf tones]
           [i (in-range 1 (most-positive-fixnum))])
@@ -441,3 +443,18 @@
   (let ([tones (load-and-update-all)])
     (write-tones-to-tsv tones)
     #t))
+
+
+(define (interleaved-list tones-s-1 tones-s-2)
+  (define (load-dir-for-tonestring tonestring)
+    (let ([t1 (- (char->integer (string-ref tonestring 0)) (char->integer #\0))]
+          [t2 (- (char->integer (string-ref tonestring 1)) (char->integer #\0))])
+      (load-dir-for-tones t1 t2)))
+  (let ([tfiles1 (load-dir-for-tonestring tones-s-1)]
+        [tfiles2 (load-dir-for-tonestring tones-s-2)])
+    (for ([tf1 tfiles1]
+          [tf2 tfiles2])
+      (displayln (path->string (tonefile-source-path tf1)))
+      (displayln "short-silence.mp3")
+      (displayln (path->string (tonefile-source-path tf2)))
+      (displayln "long-silence.mp3"))))
